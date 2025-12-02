@@ -32,7 +32,7 @@ class ThemeEnforcer:
         
         if api_key:
             self.llm = ChatGoogleGenerativeAI(
-                model="gemini-pro",
+                model=config.LLM_MODEL,
                 google_api_key=api_key,
                 temperature=0.3
             )

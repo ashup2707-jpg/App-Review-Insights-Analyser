@@ -10,6 +10,7 @@ load_dotenv()
 APP_ID = os.getenv('APP_ID', 'in.indwealth')
 APP_URL = f"https://play.google.com/store/apps/details?id={APP_ID}&hl=en_IN"
 WEEKS_BACK = int(os.getenv('WEEKS_BACK', 12))
+LLM_MODEL = "gemini-2.0-flash"
 
 # API Keys
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
