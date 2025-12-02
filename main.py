@@ -15,10 +15,10 @@ from utils.logger import setup_logger
 import config
 
 # Layer 1 imports
-from src.layer1_import.scraper import PlaywrightScraper
 from src.layer1_import.validator import SchemaValidator
 from src.layer1_import.pii_detector import PIIDetector
 from src.layer1_import.deduplicator import Deduplicator
+from src.layer1_import.gplay_simple_scraper import fetch_latest_reviews
 
 # Layer 2 imports
 from src.layer2_themes.embeddings import EmbeddingGenerator
@@ -53,13 +53,25 @@ class ReviewAnalyzerPipeline:
         logger.info("LAYER 1: DATA IMPORT & VALIDATION")
         logger.info("="*60)
         
-        # Step 1: Scrape reviews
-        logger.info("Step 1/4: Scraping reviews...")
-        scraper = PlaywrightScraper(config.APP_URL, config.WEEKS_BACK)
-        await scraper.scrape_reviews(max_scrolls=30)
-        
+        # Step 1: Scrape reviews (Google Play, latest N reviews, last N weeks)
+        logger.info("Step 1/4: Scraping reviews (google-play-scraper)...")
+        import pandas as pd
+
+        # Fetch a reasonable number of fresh reviews (you can tune this)
+        raw_reviews = fetch_latest_reviews(
+            app_id=config.APP_ID,
+            weeks_back=config.WEEKS_BACK,
+            count=200,
+        )
+
+        if not raw_reviews:
+            logger.warning("No reviews scraped; aborting pipeline.")
+            raise RuntimeError("No reviews scraped from Google Play.")
+
+        raw_df = pd.DataFrame(raw_reviews)
         raw_csv = os.path.join(self.output_dir, f'reviews_raw_{self.timestamp}.csv')
-        scraper.save_to_csv(raw_csv)
+        raw_df.to_csv(raw_csv, index=False)
+        logger.info(f"Saved {len(raw_df)} raw reviews to {raw_csv}")
         
         # Step 2: Validate schema
         logger.info("Step 2/4: Validating schema...")
@@ -99,11 +111,17 @@ class ReviewAnalyzerPipeline:
         
         import pandas as pd
         import pickle
+        from src.layer2_themes.sentiment import SentimentAnalyzer
+        
+        # Step 0: Analyze Sentiment (New)
+        logger.info("Step 0/5: Analyzing sentiment...")
+        sentiment_analyzer = SentimentAnalyzer()
+        df = pd.read_csv(reviews_csv)
+        df = sentiment_analyzer.process_dataframe(df)
         
         # Step 1: Generate embeddings
-        logger.info("Step 1/4: Generating embeddings...")
+        logger.info("Step 1/5: Generating embeddings...")
         embedding_gen = EmbeddingGenerator()
-        df = pd.read_csv(reviews_csv)
         embeddings = embedding_gen.process_dataframe(df)
         
         embeddings_file = os.path.join(self.output_dir, f'embeddings_{self.timestamp}.pkl')
@@ -111,7 +129,7 @@ class ReviewAnalyzerPipeline:
             pickle.dump(embeddings, f)
         
         # Step 2: Cluster with HDBSCAN
-        logger.info("Step 2/4: Clustering reviews...")
+        logger.info("Step 2/5: Clustering reviews...")
         clusterer = HDBSCANClustering()
         labels = clusterer.fit_predict(embeddings)
         df_clustered = clusterer.assign_to_dataframe(df)
@@ -120,7 +138,7 @@ class ReviewAnalyzerPipeline:
         df_clustered.to_csv(clustered_csv, index=False)
         
         # Step 3: Label themes
-        logger.info("Step 3/4: Labeling themes...")
+        logger.info("Step 3/5: Labeling themes...")
         labeler = ThemeLabeler()
         cluster_themes = labeler.label_all_clusters(df_clustered)
         df_themed = labeler.assign_themes_to_dataframe(df_clustered, cluster_themes)
@@ -129,7 +147,7 @@ class ReviewAnalyzerPipeline:
         df_themed.to_csv(themed_csv, index=False)
         
         # Step 4: Enforce theme limit
-        logger.info("Step 4/4: Enforcing theme limit...")
+        logger.info("Step 4/5: Enforcing theme limit...")
         enforcer = ThemeEnforcer()
         df_final, final_themes = enforcer.enforce_theme_limit(df_themed, cluster_themes)
         
@@ -150,6 +168,10 @@ class ReviewAnalyzerPipeline:
         
         df = pd.read_csv(themed_csv)
         
+        # Calculate sentiment stats
+        sentiment_stats = df['sentiment'].value_counts().to_dict()
+        sentiment_stats['total'] = len(df)
+        
         # Step 1: Extract quotes
         logger.info("Step 1/3: Extracting quotes...")
         quote_extractor = QuoteExtractor()
@@ -165,7 +187,7 @@ class ReviewAnalyzerPipeline:
         logger.info("Step 3/3: Assembling weekly pulse...")
         theme_counts = df['theme_name'].value_counts().to_dict()
         assembler = PulseAssembler()
-        pulse = assembler.assemble_pulse(themes, theme_counts, quotes, actions)
+        pulse = assembler.assemble_pulse(themes, theme_counts, quotes, actions, sentiment_stats)
         
         pulse_md = os.path.join(self.output_dir, f'weekly_pulse_{self.timestamp}.md')
         assembler.save_pulse(pulse, pulse_md)
@@ -189,6 +211,13 @@ class ReviewAnalyzerPipeline:
         
         email_txt = os.path.join(self.output_dir, f'email_draft_{self.timestamp}.txt')
         drafter.save_draft(email, email_txt)
+
+        # Optionally send the email if enabled via environment variable
+        try:
+            drafter.send_email_from_draft(email)
+        except Exception:
+            # Don't fail the pipeline if sending email fails; it's a best-effort step
+            logger.warning("Email sending step failed; draft is still saved.", exc_info=True)
         
         logger.info("Layer 4 complete: Email draft created")
         return email_txt

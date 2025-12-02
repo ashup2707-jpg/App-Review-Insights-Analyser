@@ -45,14 +45,14 @@ class ThemeLabeler:
         
     def label_cluster(self, sample_reviews: List[str], suggested_categories: List[str] = None) -> str:
         """
-        Generate theme label for a cluster based on sample reviews
+        Generate hierarchical theme label for a cluster
         
         Args:
             sample_reviews: List of sample review texts from cluster
             suggested_categories: Optional list of suggested category names
             
         Returns:
-            Theme label string
+            Theme label string (Category > Sub-category)
         """
         categories = suggested_categories or config.THEME_CATEGORIES
         
@@ -69,11 +69,14 @@ class ThemeLabeler:
         try:
             response = self.llm.invoke(prompt)
             theme_label = response.content.strip()
+            # Clean up if LLM adds extra text
+            if "\n" in theme_label:
+                theme_label = theme_label.split("\n")[0]
             logger.info(f"Generated theme label: {theme_label}")
             return theme_label
         except Exception as e:
             logger.error(f"Error generating theme label: {e}")
-            return "Uncategorized"
+            return "Uncategorized > General"
     
     def label_all_clusters(self, df: pd.DataFrame, content_column: str = 'content', n_samples: int = 10) -> Dict[int, str]:
         """

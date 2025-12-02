@@ -25,7 +25,7 @@ class PulseAssembler:
         self.max_words = max_words or config.MAX_WORD_COUNT
         
     def assemble_pulse(self, themes: List[str], theme_counts: Dict[str, int], 
-                      quotes: List[str], actions: List[str]) -> str:
+                      quotes: List[str], actions: List[str], sentiment_stats: Dict = None) -> str:
         """
         Assemble weekly pulse note
         
@@ -34,6 +34,7 @@ class PulseAssembler:
             theme_counts: Dictionary of theme counts
             quotes: List of quotes
             actions: List of action items
+            sentiment_stats: Optional dictionary with sentiment statistics
             
         Returns:
             Formatted pulse note as markdown string
@@ -47,11 +48,37 @@ class PulseAssembler:
         pulse = f"# IND Money Weekly Review Pulse\n"
         pulse += f"**Week of {week_start}**\n\n"
         
-        # Top 3 Themes
-        pulse += "## 📊 Top 3 Themes\n\n"
-        for i, theme in enumerate(themes[:3], 1):
+        # Sentiment Overview (New)
+        if sentiment_stats:
+            pulse += "## 📈 Sentiment Overview\n\n"
+            total = sentiment_stats.get('total', 0)
+            if total > 0:
+                pos = sentiment_stats.get('Positive', 0)
+                neu = sentiment_stats.get('Neutral', 0)
+                neg = sentiment_stats.get('Negative', 0)
+                pulse += f"- **Positive**: {pos} ({int(pos/total*100)}%)\n"
+                pulse += f"- **Neutral**: {neu} ({int(neu/total*100)}%)\n"
+                pulse += f"- **Negative**: {neg} ({int(neg/total*100)}%)\n\n"
+        
+        # Top Themes (Hierarchical)
+        pulse += "## 📊 Top Themes & Issues\n\n"
+
+        # Reorder themes so that concrete themes come first and catch-all
+        # buckets like 'Miscellaneous' or 'Other Issues' appear last.
+        primary_themes = [t for t in themes if t not in ("Miscellaneous", "Other Issues")]
+        fallback_themes = [t for t in themes if t in ("Miscellaneous", "Other Issues")]
+        ordered_themes = primary_themes + fallback_themes
+
+        for i, theme in enumerate(ordered_themes[:5], 1):
             count = theme_counts.get(theme, 0)
-            pulse += f"{i}. **{theme}** ({count} reviews)\n"
+            # Format: Category > Issue
+            if " > " in theme:
+                category, issue = theme.split(" > ", 1)
+                display_theme = f"**{category}**: {issue}"
+            else:
+                display_theme = f"**{theme}**"
+                
+            pulse += f"{i}. {display_theme} ({count} reviews)\n"
         pulse += "\n"
         
         # User Quotes

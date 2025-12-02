@@ -45,17 +45,30 @@ class HDBSCANClustering:
             Array of cluster labels (-1 for noise)
         """
         logger.info(f"Clustering {len(embeddings)} embeddings with HDBSCAN...")
+        
+        # Fallback for small datasets
+        if len(embeddings) < self.min_cluster_size:
+            logger.warning(f"Dataset too small for clustering ({len(embeddings)} < {self.min_cluster_size}). Assigning all to Cluster 0.")
+            self.labels = np.zeros(len(embeddings), dtype=int)
+            self.probabilities = np.ones(len(embeddings), dtype=float)
+            return self.labels
+            
         logger.info(f"Parameters: min_cluster_size={self.min_cluster_size}, min_samples={self.min_samples}")
         
-        self.clusterer = hdbscan.HDBSCAN(
-            min_cluster_size=self.min_cluster_size,
-            min_samples=self.min_samples,
-            metric='euclidean',
-            cluster_selection_method='eom'  # Excess of Mass
-        )
-        
-        self.labels = self.clusterer.fit_predict(embeddings)
-        self.probabilities = self.clusterer.probabilities_
+        try:
+            self.clusterer = hdbscan.HDBSCAN(
+                min_cluster_size=self.min_cluster_size,
+                min_samples=self.min_samples,
+                metric='euclidean',
+                cluster_selection_method='eom'  # Excess of Mass
+            )
+            
+            self.labels = self.clusterer.fit_predict(embeddings)
+            self.probabilities = self.clusterer.probabilities_
+        except Exception as e:
+            logger.error(f"Clustering failed: {e}. Fallback to single cluster.")
+            self.labels = np.zeros(len(embeddings), dtype=int)
+            self.probabilities = np.ones(len(embeddings), dtype=float)
         
         # Get cluster statistics
         unique_labels = set(self.labels)

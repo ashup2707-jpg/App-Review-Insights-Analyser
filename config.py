@@ -16,8 +16,9 @@ LLM_MODEL = "gemini-2.0-flash"
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 
 # Email Configuration
-EMAIL_ADDRESS = os.getenv('EMAIL_ADDRESS')
+EMAIL_ADDRESS = os.getenv('EMAIL_ADDRESS')  # sender
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
+EMAIL_RECIPIENT = os.getenv('EMAIL_RECIPIENT')  # optional explicit recipient
 SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.getenv('SMTP_PORT', 587))
 
@@ -48,14 +49,15 @@ MAX_WORD_COUNT = 250
 # LLM Prompts
 THEME_LABELING_PROMPT = """
 You are analyzing customer reviews for a financial app called IND Money.
-Below are sample reviews from a cluster. Generate a concise, human-readable theme name (2-4 words) that captures the main topic.
+Below are sample reviews from a cluster. Generate a hierarchical theme name in the format "Category > Specific Issue".
+The Category should be one of the suggested categories if applicable. The Specific Issue should be 2-4 words describing the specific problem or feature.
 
 Suggested categories: {categories}
 
 Reviews:
 {reviews}
 
-Theme name:
+Theme name (Category > Specific Issue):
 """
 
 QUOTE_EXTRACTION_PROMPT = """
@@ -96,4 +98,21 @@ Reviews:
 {reviews}
 
 Summary:
+"""
+
+SENTIMENT_ANALYSIS_PROMPT = """
+Analyze the sentiment of the following reviews.
+For each review, determine:
+1. Sentiment: "Positive", "Negative", or "Neutral"
+2. Score: 0 (Very Negative) to 10 (Very Positive)
+
+Reviews:
+{reviews}
+
+Return ONLY a JSON array of objects with keys "id" (1-based index), "sentiment", and "score".
+Example:
+[
+  {{"id": 1, "sentiment": "Negative", "score": 2}},
+  {{"id": 2, "sentiment": "Positive", "score": 9}}
+]
 """

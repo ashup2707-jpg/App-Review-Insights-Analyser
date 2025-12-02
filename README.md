@@ -1,67 +1,131 @@
-# App-Review-Insights-Analyser
+# IND Money Review Analyzer
 
-An automated AI-powered system that transforms IND Money app reviews into actionable weekly insights using a 4-layer architecture with LLMs, HDBSCAN clustering, and automated reporting.
+An automated AI-powered system that transforms IND Money app reviews from Google Play Store into actionable weekly product insights. The system uses a 4-layer architecture with LLMs, HDBSCAN clustering, and automated email distribution.
 
-## 🎯 Overview
+## 🎯 What This Project Does
 
 This system automatically:
-1. **Scrapes** Google Play Store reviews (last 8-12 weeks)
-2. **Analyzes** reviews using HDBSCAN clustering + LLM theme labeling
-3. **Generates** a scannable weekly pulse note (≤250 words) with:
-   - Top 3 themes
+1. **Scrapes** Google Play Store reviews (last 8-12 weeks) using `google-play-scraper`
+2. **Cleans & Validates** reviews (removes PII, deduplicates, validates schema)
+3. **Analyzes** reviews using:
+   - Sentiment analysis (LLM-powered)
+   - Embedding generation (Sentence Transformers)
+   - HDBSCAN clustering
+   - LLM-based theme labeling (max 5 themes)
+4. **Generates** a scannable weekly pulse note (≤250 words) with:
+   - Sentiment metrics (Positive/Neutral/Negative %)
+   - Top themes with review counts
    - 3 representative user quotes
    - 3 actionable recommendations
-4. **Drafts** an email ready to send to stakeholders
+5. **Drafts & Sends** a professional email to stakeholders (Product Managers, CEOs)
 
-**Target Users:** Product/Growth teams, Support teams, Leadership
+**Target Audience:** Product/Growth teams, Support teams, Leadership (CEO/CXO)
 
-## 🏗️ Architecture
+---
 
-### 4-Layer Pipeline
+## 🏗️ Architecture: 4-Layer Pipeline
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 1: Data Import & Validation                          │
-│  ├─ Playwright Scraper (Google Play Store)                 │
+│  ├─ Google Play Scraper (google-play-scraper)             │
 │  ├─ Schema Validator                                        │
 │  ├─ PII Detector (Presidio)                                │
 │  └─ Deduplicator                                            │
+│  Output: reviews_clean_YYYYMMDD_HHMMSS.csv                │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 2: Theme Extraction & Classification                 │
+│  ├─ Sentiment Analyzer (LLM)                               │
 │  ├─ Embedding Generation (Sentence Transformers)           │
 │  ├─ HDBSCAN Clustering                                      │
 │  ├─ LLM Theme Labeling (LangChain + Gemini)               │
 │  └─ Theme Enforcer (max 5 themes)                          │
+│  Output: reviews_final_YYYYMMDD_HHMMSS.csv                 │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 3: Content Generation                                │
-│  ├─ Quote Extraction (LLM)                                 │
+│  ├─ Quote Extractor (LLM)                                 │
 │  ├─ Action Generator (Chain-of-Thought)                    │
 │  └─ Pulse Assembler (≤250 words)                           │
+│  Output: weekly_pulse_YYYYMMDD_HHMMSS.md                   │
 └─────────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────────┐
 │ Layer 4: Distribution                                       │
-│  ├─ Email Drafter                                           │
-│  └─ PII Final Check                                         │
+│  ├─ Email Drafter (Professional PM/CEO tone)              │
+│  └─ SMTP Email Sender (Gmail/Other)                        │
+│  Output: email_draft_YYYYMMDD_HHMMSS.txt + Email Sent      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🚀 Setup
+---
+
+## 📁 Project Structure
+
+```
+INDMoney Review Analyser/
+├── main.py                          # Main pipeline orchestrator
+├── config.py                        # Configuration (API keys, settings)
+├── requirements.txt                 # Python dependencies
+├── .env.example                     # Environment variables template
+├── .gitignore                       # Git ignore rules
+│
+├── src/                             # Source code (4 layers)
+│   ├── layer1_import/               # Layer 1: Data Import & Validation
+│   │   ├── gplay_simple_scraper.py # Google Play scraper (primary)
+│   │   ├── scraper.py              # Legacy Playwright scraper
+│   │   ├── validator.py            # Schema validation
+│   │   ├── pii_detector.py         # PII detection & anonymization
+│   │   └── deduplicator.py         # Remove duplicate reviews
+│   │
+│   ├── layer2_themes/              # Layer 2: Theme Extraction
+│   │   ├── sentiment.py            # Sentiment analysis (LLM)
+│   │   ├── embeddings.py           # Generate embeddings
+│   │   ├── clustering.py           # HDBSCAN clustering
+│   │   ├── theme_labeler.py        # LLM theme labeling
+│   │   └── theme_enforcer.py       # Enforce max 5 themes
+│   │
+│   ├── layer3_generation/           # Layer 3: Content Generation
+│   │   ├── quote_extractor.py      # Extract top quotes (LLM)
+│   │   ├── action_generator.py     # Generate action items (LLM)
+│   │   └── pulse_assembler.py       # Assemble weekly pulse note
+│   │
+│   └── layer4_distribution/         # Layer 4: Distribution
+│       └── email_drafter.py        # Draft & send email via SMTP
+│
+├── output/                          # Generated outputs (gitignored)
+│   ├── reviews_raw_*.csv           # Raw scraped reviews
+│   ├── reviews_clean_*.csv         # Cleaned reviews (Layer 1 output)
+│   ├── reviews_final_*.csv         # Reviews with themes (Layer 2 output)
+│   ├── weekly_pulse_*.md           # Weekly pulse note (Layer 3 output)
+│   ├── email_draft_*.txt           # Email draft (Layer 4 output)
+│   └── pipeline.log                 # Execution logs
+│
+├── utils/                           # Utility modules
+│   └── logger.py                    # Logging setup
+│
+└── tests/                           # Unit tests (if any)
+```
+
+---
+
+## 🚀 Quick Start
 
 ### Prerequisites
 
 - Python 3.9+
-- Google Gemini API key ([Get one here](https://makersuite.google.com/app/apikey))
+- Google Gemini API key ([Get one here](https://aistudio.google.com/app/apikey))
+- Gmail account (for email sending) or any SMTP server
 
 ### Installation
 
 1. **Clone the repository**
 ```bash
-cd "/Users/sneha/Desktop/INDMoney Review Analyser"
+git clone <your-repo-url>
+cd "INDMoney Review Analyser"
 ```
 
 2. **Install dependencies**
@@ -69,26 +133,43 @@ cd "/Users/sneha/Desktop/INDMoney Review Analyser"
 python3 -m pip install -r requirements.txt --user
 ```
 
-3. **Install Playwright browsers**
-```bash
-python3 -m playwright install chromium
-```
-
-4. **Configure environment variables**
+3. **Configure environment variables**
 ```bash
 cp .env.example .env
-# Edit .env and add your GOOGLE_API_KEY
+# Edit .env and add:
+# - GOOGLE_API_KEY (Gemini API key)
+# - EMAIL_ADDRESS (Gmail sender)
+# - EMAIL_PASSWORD (Gmail app password)
+# - EMAIL_RECIPIENT (recipient email)
+# - ENABLE_EMAIL_SENDING=1
 ```
 
 ### Configuration
 
-Edit `config.py` to customize:
+Edit `.env` file:
+
+```bash
+# Required: Gemini API for LLM features
+GOOGLE_API_KEY=your_gemini_api_key_here
+
+# Email Configuration (for automated sending)
+EMAIL_ADDRESS=your_email@gmail.com
+EMAIL_PASSWORD=your_gmail_app_password
+EMAIL_RECIPIENT=recipient@example.com
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+ENABLE_EMAIL_SENDING=1
+```
+
+Or edit `config.py` to customize:
 - `APP_ID`: Target app ID (default: `in.indwealth`)
 - `WEEKS_BACK`: Number of weeks to analyze (default: 12)
 - `MAX_THEMES`: Maximum themes (default: 5)
 - `MAX_QUOTES`: Number of quotes (default: 3)
 - `MAX_ACTION_ITEMS`: Number of actions (default: 3)
 - `MAX_WORD_COUNT`: Pulse word limit (default: 250)
+
+---
 
 ## 📖 Usage
 
@@ -99,167 +180,139 @@ python3 main.py
 ```
 
 This will:
-1. Scrape reviews from Google Play Store
-2. Process and analyze them
-3. Generate weekly pulse note
-4. Create email draft
+1. Scrape reviews from Google Play Store (using `google-play-scraper`)
+2. Clean, validate, and deduplicate reviews
+3. Analyze sentiment, generate embeddings, cluster, and label themes
+4. Extract quotes, generate actions, and assemble weekly pulse
+5. Draft and send email to configured recipient
 
-All outputs saved to `output/` directory.
-
-### Run Individual Layers
-
-**Layer 1: Scrape & Clean**
-```bash
-cd src/layer1_import
-python3 scraper.py
-python3 validator.py reviews_raw.csv reviews_validated.csv
-python3 pii_detector.py reviews_validated.csv reviews_anonymized.csv
-python3 deduplicator.py reviews_anonymized.csv reviews_clean.csv
-```
-
-**Layer 2: Theme Extraction**
-```bash
-cd src/layer2_themes
-python3 embeddings.py reviews_clean.csv embeddings.pkl
-python3 clustering.py embeddings.pkl reviews_clean.csv reviews_clustered.csv
-python3 theme_labeler.py reviews_clustered.csv reviews_themed.csv
-python3 theme_enforcer.py reviews_themed.csv reviews_final.csv
-```
-
-**Layer 3: Content Generation**
-```bash
-cd src/layer3_generation
-python3 quote_extractor.py reviews_final.csv quotes.json 3
-python3 action_generator.py reviews_final.csv quotes.json actions.json 3
-python3 pulse_assembler.py reviews_final.csv quotes.json actions.json weekly_pulse.md
-```
-
-**Layer 4: Email Draft**
-```bash
-cd src/layer4_distribution
-python3 email_drafter.py weekly_pulse.md email_draft.txt
-```
-
-## 📊 Theme Legend
-
-The system categorizes reviews into up to 5 themes:
-
-| Theme | Description | Example Issues |
-|-------|-------------|----------------|
-| **Features & Functionality** | Core app features, UI/UX, navigation | Missing features, confusing UI, broken functionality |
-| **App Updates & Performance** | App stability, speed, crashes | Slow loading, frequent crashes, bugs after updates |
-| **Transactions & Payments** | Payment processing, transaction issues | Failed payments, incorrect amounts, refund delays |
-| **Customer Service & Support** | Support quality, response time | Slow responses, unhelpful support, unresolved issues |
-| **Product Marketing & Communication** | Notifications, promotions, messaging | Spam notifications, misleading ads, poor communication |
-
-## 📁 Output Files
-
-After running the pipeline, check `output/` for:
-
-- `reviews_clean_YYYYMMDD_HHMMSS.csv` - Cleaned review data
+**All outputs saved to `output/` directory:**
+- `reviews_raw_YYYYMMDD_HHMMSS.csv` - Raw scraped reviews
+- `reviews_clean_YYYYMMDD_HHMMSS.csv` - Cleaned reviews
 - `reviews_final_YYYYMMDD_HHMMSS.csv` - Reviews with theme labels
 - `weekly_pulse_YYYYMMDD_HHMMSS.md` - Weekly pulse note
 - `email_draft_YYYYMMDD_HHMMSS.txt` - Email draft
 - `pipeline.log` - Execution logs
 
-## 🔧 Troubleshooting
+### Run Individual Layers
 
-### Scraper Issues
-
-**Problem:** Playwright fails to load reviews
-- **Solution:** Check internet connection, try increasing `max_scrolls` parameter
-- **Alternative:** Google may have changed their page structure. Update selectors in `scraper.py`
-
-### API Rate Limits
-
-**Problem:** Gemini API rate limit errors
-- **Solution:** Add delays between API calls or use a paid API tier
-- **Workaround:** Process reviews in smaller batches
-
-### Clustering Issues
-
-**Problem:** Too many or too few clusters
-- **Solution:** Adjust `MIN_CLUSTER_SIZE` and `MIN_SAMPLES` in `config.py`
-- **Recommended:** `MIN_CLUSTER_SIZE=5`, `MIN_SAMPLES=3`
-
-### PII Detection
-
-**Problem:** Presidio not detecting PII
-- **Solution:** Ensure `presidio-analyzer` and `presidio-anonymizer` are installed
-- **Note:** Download required NLP models: `python3 -m spacy download en_core_web_lg`
-
-## 🧪 Testing
-
-Run tests for individual layers:
-
+**Layer 1: Scrape & Clean**
 ```bash
-# Layer 1 tests
-pytest tests/test_layer1.py -v
-
-# Layer 2 tests
-pytest tests/test_layer2.py -v
-
-# Layer 3 tests
-pytest tests/test_layer3.py -v
-
-# Layer 4 tests
-pytest tests/test_layer4.py -v
-
-# All tests
-pytest tests/ -v
+python3 -m src.layer1_import.gplay_simple_scraper --count 20 --weeks-back 12
 ```
 
-## 📝 Example Output
+**Layer 2-4:** Use `main.py` with breakpoints or run individual modules (see code for details)
 
-### Weekly Pulse Note
+---
+
+## 📊 Output Format
+
+### Weekly Pulse Note (`weekly_pulse_*.md`)
 
 ```markdown
 # IND Money Weekly Review Pulse
-**Week of December 02, 2024**
+**Week of December 02, 2025**
 
-## 📊 Top 3 Themes
+## 📈 Sentiment Overview
+- **Positive**: 59 (45%)
+- **Neutral**: 19 (14%)
+- **Negative**: 51 (39%)
 
-1. **App Updates & Performance** (45 reviews)
-2. **Transactions & Payments** (32 reviews)
-3. **Customer Service & Support** (28 reviews)
+## 📊 Top Themes & Issues
+1. **Features & Functionality**: Positive User Experience (12 reviews)
+2. **Features & Functionality**: US Stock Charts (10 reviews)
+3. **Features & Functionality**: Positive User Feedback (5 reviews)
 
 ## 💬 What Users Are Saying
-
-1. "App crashes frequently after the latest update. Very frustrating!"
-2. "Payment failed but money was deducted. Support not responding."
-3. "Great features but UI is confusing for new users."
+1. "Good app no hidden charges except ₹299 for instant deposit..."
+2. "The daily time frame charts in the US market don't seem to show accurate data..."
+3. "Love the app. Especially for US investing. Feedback: Please add XIRR..."
 
 ## 🎯 Action Items
-
-1. Prioritize stability fixes for the latest app version
-2. Improve payment failure handling and refund process
-3. Enhance customer support response time for payment issues
+1. Implement XIRR calculation for stock performance tracking...
+2. Investigate and resolve inaccuracies in US stock charts...
+3. Evaluate the impact of brokerage fees on user satisfaction...
 ```
 
-## 🔐 Privacy & Compliance
+### Email Draft (`email_draft_*.txt`)
 
-- **No PII in outputs**: All usernames, emails, phone numbers automatically removed
-- **Public data only**: Scrapes only publicly visible reviews (no login required)
-- **GDPR compliant**: No personal data storage or processing
+Professional email format optimized for Product Managers and CEOs, including:
+- Executive summary
+- Key metrics (sentiment breakdown)
+- Top themes with review counts
+- Exact user quotes
+- Actionable recommendations
+
+---
+
+## 🔧 Troubleshooting
+
+### API Key Issues
+
+**Problem:** `403 Your API key was reported as leaked` or `400 API key expired`
+- **Solution:** Generate a new Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey)
+- **Update:** Replace `GOOGLE_API_KEY` in `.env`
+
+### Email Not Sending
+
+**Problem:** Email draft created but not sent
+- **Check:** `ENABLE_EMAIL_SENDING=1` in `.env`
+- **Check:** `EMAIL_ADDRESS` and `EMAIL_PASSWORD` are correct
+- **Check:** Gmail app password (not regular password) - [Create App Password](https://myaccount.google.com/apppasswords)
+- **Check:** `output/pipeline.log` for SMTP errors
+
+### Scraper Issues
+
+**Problem:** No reviews scraped or low quality
+- **Solution:** Uses `google-play-scraper` library (more reliable than DOM scraping)
+- **Check:** Internet connection and Google Play Store accessibility
+- **Note:** Legacy `scraper.py` (Playwright) still available but not recommended
+
+### Clustering Issues
+
+**Problem:** Too many "Miscellaneous" reviews
+- **Solution:** Adjust `MIN_CLUSTER_SIZE` and `MIN_SAMPLES` in `config.py`
+- **Recommended:** `MIN_CLUSTER_SIZE=5`, `MIN_SAMPLES=3`
+- **Note:** With small datasets (<20 reviews), clustering may assign many to "Miscellaneous"
+
+---
 
 ## 🛠️ Tech Stack
 
-- **Scraping**: Playwright, BeautifulSoup4
+- **Scraping**: `google-play-scraper` (primary), Playwright (legacy)
 - **ML/AI**: Sentence Transformers, HDBSCAN, LangChain, Google Gemini
 - **PII Detection**: Presidio
 - **Data Processing**: Pandas, NumPy
+- **Email**: SMTP (smtplib)
 - **Language**: Python 3.9+
 
-## 📚 References
+---
 
-- [HDBSCAN Clustering](https://hdbscan.readthedocs.io/)
-- [Sentence Transformers](https://www.sbert.net/)
-- [LangChain](https://python.langchain.com/)
-- [Presidio](https://microsoft.github.io/presidio/)
+## 🔐 Privacy & Compliance
+
+- **No PII in outputs**: All usernames, emails, phone numbers automatically removed via Presidio
+- **Public data only**: Scrapes only publicly visible reviews (no login required)
+- **GDPR compliant**: No personal data storage or processing beyond anonymization
+
+---
+
+## 📚 Key Features Implemented
+
+✅ **Google Play Scraper**: Reliable review scraping using `google-play-scraper`  
+✅ **Sentiment Analysis**: LLM-powered sentiment classification  
+✅ **Theme Clustering**: HDBSCAN + LLM labeling (max 5 themes)  
+✅ **Professional Email**: PM/CEO-focused tone with metrics, quotes, actions  
+✅ **Email Automation**: SMTP integration for automatic delivery  
+✅ **PII Removal**: Presidio-based anonymization  
+✅ **4-Layer Architecture**: Clean separation of concerns  
+
+---
 
 ## 🤝 Contributing
 
 This is a personal project for IND Money review analysis. For questions or suggestions, please open an issue.
+
+---
 
 ## 📄 License
 
@@ -267,4 +320,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Built with ❤️ for better product insights** 
+**Built with ❤️ for better product insights**
